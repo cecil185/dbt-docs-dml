@@ -16,7 +16,7 @@ pip install src/
 or direct from git
 
 ```
-pip install -U git+https://github.com/intellishore/dbt-erdiagram-generator#subdirectory=src
+pip install -U git+https://github.com/cecil185/dbt-docs-dml#subdirectory=src
 ```
 
 2. Setup dbdocs cli for diagram creations. [Instructions here](https://dbdocs.io/docs)
