@@ -2,11 +2,11 @@ from setuptools import setup, find_packages
 
 setup(
     name='dbterd',
-    version='0.0.1',    
+    version='0.1.1',    
     description='A simple package that can generate dbml file and erd diagrams for dbt',
-    url='https://github.com/intellishore/dbt-erdiagram-generator',
-    author='Oliver Rise Thomsen, Anders Boje Hertz',
-    author_email='oliver.thomsen@intellishore.dk',
+    url='https://github.com/cecil185/dbt-docs-to-dbml',
+    author='Cecil Ash, Oliver Rise Thomsen, Anders Boje Hertz',
+    author_email='cecil.ash.4@gmail.com',
     license='MIT',
     packages=find_packages(),
     include_package_data=True,
