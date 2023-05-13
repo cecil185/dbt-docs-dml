@@ -1,5 +1,5 @@
 import click
-from .core import genereatedbml
+from core import genereatedbml
 import subprocess
 
 
@@ -7,12 +7,13 @@ import subprocess
 @click.argument('schema_path', type=str)
 @click.argument('catalog_path', type=str)
 @click.argument('erd_path', type=str)
+@click.argument('docs_path', type=str)
 @click.argument('project_name', type=str)
 @click.argument('visualize', type=bool)
-def cli(schema_path, catalog_path, erd_path, project_name, visualize):
+def cli(schema_path, catalog_path, erd_path, docs_path, project_name, visualize):
     """"Generate a DBML file from a dbt project and visualize it with dbdocs.io"""
     try:
-        genereatedbml(schema_path, catalog_path, erd_path)
+        genereatedbml(schema_path, catalog_path, erd_path, docs_path)
     except:
         print("The dbml file does not match the required format")
         
