@@ -2,6 +2,7 @@ import json
 import yaml
 import re
 import os
+from pathlib import Path
 
 def loadModel(catalog_path, schema_path):
     """Loads the dbt catalog and schema. The schema selected is the one that will be used to generate the ERD diagram.
@@ -13,22 +14,41 @@ def loadModel(catalog_path, schema_path):
     Returns:
         dict, dict: Return schema and catalog dicts.  
     """    
-    with open(catalog_path) as f:
-        catalog = json.load(f)
+    try:
+        with open(catalog_path, 'r') as f:
+            catalog = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Failed to load catalog: {e}")
+        return None, None
 
-
-    with open(schema_path, 'r') as f:
-        schema = yaml.safe_load(f)
+    try:
+        with open(schema_path, 'r') as f:
+            schema = yaml.safe_load(f)
+    except (FileNotFoundError, yaml.YAMLError) as e:
+        print(f"Failed to load schema: {e}")
+        return None, None
 
     return catalog, schema
 
+# Replace jinja variables in .yml with values in the docs.md files
+def replace_jinja_variables(text, docs_dict):
+    jinja_variable_pattern = re.compile(r'\'?{{\s*doc\(\s*\"(\w+)\"\s*\)\s*}}\'?\n?')
+
+
+    def replace_variable(match):
+        variable_name = match.group(1)
+        return docs_dict.get(variable_name, match.group(0))
+
+    return jinja_variable_pattern.sub(replace_variable, text)
 
 def createTable(dbml_path, model, schema, docs_path):
     """Create a table in the dbml file. 
 
     Args:
         dbml_path (dbml file): The file where to store the table
-        model (dbt model): The dbt model to extract the table and columns from
+        model: JSON object from catalog representing the dbt model
+        schema: The dbt YAML file from which we extract descriptions and tests
+        docs_path: Path to docs folder containing docs.md files
     """    
     name = model["metadata"]["name"]
     columns = list(model["columns"].keys())
@@ -38,32 +58,26 @@ def createTable(dbml_path, model, schema, docs_path):
     # Create a dictionary from the docs.md file
     docs_dict = {}
 
+    docs_pattern = re.compile(r"{% docs (.*?) %}(.*?){% enddocs %}", re.DOTALL)
+
+    docs_path = Path(docs_path)
+
     if os.path.exists(docs_path):
         # Loop through all files in the docs folder
-        for filename in os.listdir(docs_path):
+        for filename in docs_path.iterdir():
             # Check if the file is a markdown file
-            if filename.endswith(".md"):
-                # Load the content of the markdown file
-                with open(os.path.join(docs_path, filename), "r") as docs_file:
-                    docs_content = docs_file.read()
+            if filename.suffix == ".md":
+                try:
+                    # Load the content of the markdown file
+                    with open(filename, "r", encoding="utf-8") as docs_file:
+                        docs_content = docs_file.read()
 
-                docs_pattern = re.compile(r"{% docs (.*?) %}(.*?){% enddocs %}", re.DOTALL)
-
-                for match in docs_pattern.finditer(docs_content):
-                    key = match.group(1).strip()
-                    value = match.group(2).strip()
-                    docs_dict[key] = value.replace("'", "")
-
-    # Replace jinja variables in .yml with values in the docs.md files
-    def replace_jinja_variables(text, docs_dict):
-        jinja_variable_pattern = re.compile(r'\'?{{\s*doc\(\s*\"(\w+)\"\s*\)\s*}}\'?\n?')
-
-
-        def replace_variable(match):
-            variable_name = match.group(1)
-            return docs_dict.get(variable_name, match.group(0))
-
-        return jinja_variable_pattern.sub(replace_variable, text)
+                    for match in docs_pattern.finditer(docs_content):
+                        key = match.group(1).strip()
+                        value = match.group(2).strip()
+                        docs_dict[key] = value.replace("'", "")
+                except IOError as e:
+                    print(f"Error reading file {filename}: {e}")
 
     # Find the model in the schema YAML file
     schema_model = None
