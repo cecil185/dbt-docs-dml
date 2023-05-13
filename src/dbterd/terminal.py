@@ -1,5 +1,5 @@
 import click
-from core import genereatedbml
+from .core import genereatedbml
 import subprocess
 
 
