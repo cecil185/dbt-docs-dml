@@ -14,12 +14,10 @@ def cli(schema_path, catalog_path, erd_path, docs_path, project_name, visualize)
     """"Generate a DBML file from a dbt project and visualize it with dbdocs.io"""
     try:
         genereatedbml(schema_path, catalog_path, erd_path, docs_path)
-    except:
-        print("The dbml file does not match the required format")
-        
-    if visualize:
-        try:
+        if visualize:
             subprocess.run(f"dbdocs build {erd_path} --project {project_name}", text=True, shell=True)
-        except:
-            print("dbdocs is not set up probably")
-            
+    
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        
+    
