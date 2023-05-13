@@ -16,7 +16,7 @@ pip install src/
 or direct from git
 
 ```
-pip install -U git+https://github.com/cecil185/dbt-docs-dml#subdirectory=src
+pip install -U git+https://github.com/cecil185/dbt-docs-to-dbml#subdirectory=src
 ```
 
 2. Setup dbdocs cli for diagram creations. [Instructions here](https://dbdocs.io/docs)
