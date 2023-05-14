@@ -72,7 +72,7 @@ class DbmlDocs:
     
     def ReplaceJinjaVariables(self, text):
         jinja_variable_pattern = re.compile(r'\'?{{\s*doc\(\s*\"(\w+)\"\s*\)\s*}}\'?\n?')
-        return jinja_variable_pattern.sub(lambda match: self.docs_dict.get(match.group(1), match.group(0)), text)
+        return jinja_variable_pattern.sub(lambda match: self.docs_dict.get(match.group(1), ""), text)
 
     
     def ParseDocsMarkdownFiles(self, docs_path):
