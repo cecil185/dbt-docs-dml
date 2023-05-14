@@ -2,6 +2,7 @@ import json
 import yaml
 import re
 import os
+from pathlib import Path
 
 def loadModel(catalog_path, schema_path):
     """Loads the dbt catalog and schema. The schema selected is the one that will be used to generate the ERD diagram.
@@ -13,57 +14,88 @@ def loadModel(catalog_path, schema_path):
     Returns:
         dict, dict: Return schema and catalog dicts.  
     """    
-    with open(catalog_path) as f:
-        catalog = json.load(f)
+    try:
+        with open(catalog_path, 'r') as f:
+            catalog = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Failed to load catalog: {e}")
+        return None, None
 
-
-    with open(schema_path, 'r') as f:
-        schema = yaml.safe_load(f)
+    try:
+        with open(schema_path, 'r') as f:
+            schema = yaml.safe_load(f)
+    except (FileNotFoundError, yaml.YAMLError) as e:
+        print(f"Failed to load schema: {e}")
+        return None, None
 
     return catalog, schema
 
+# Replace jinja variables in .yml with values in the docs.md files
+def replace_jinja_variables(text, docs_dict):
+    jinja_variable_pattern = re.compile(r'\'?{{\s*doc\(\s*\"(\w+)\"\s*\)\s*}}\'?\n?')
+
+
+    def replace_variable(match):
+        variable_name = match.group(1)
+        return docs_dict.get(variable_name, match.group(0))
+
+    return jinja_variable_pattern.sub(replace_variable, text)
+
+def parse_docs_markdown_files(docs_path):
+
+    # Create a dictionary from the docs.md file
+    docs_dict = {}
+
+    docs_pattern = re.compile(r"{% docs (.*?) %}(.*?){% enddocs %}", re.DOTALL)
+
+    docs_path = Path(docs_path)
+
+    if os.path.exists(docs_path):
+        # Loop through all files in the docs folder
+        for filename in docs_path.iterdir():
+            # Check if the file is a markdown file
+            if filename.suffix == ".md":
+                try:
+                    # Load the content of the markdown file
+                    with open(filename, "r", encoding="utf-8") as docs_file:
+                        docs_content = docs_file.read()
+
+                    for match in docs_pattern.finditer(docs_content):
+                        key = match.group(1).strip()
+                        value = match.group(2).strip()
+                        docs_dict[key] = value.replace("'", "")
+                except IOError as e:
+                    print(f"Error reading file {filename}: {e}")
+                except UnicodeDecodeError as e:
+                    print(f"Error decoding file {filename}: {e}")
+
+    return docs_dict
+
+def parse_description(entity, docs_dict):
+    if "description" not in entity:
+        return ""
+        
+    description = entity["description"]
+    if "{{" in description:
+        return "Note: '" + replace_jinja_variables(description, docs_dict) + "'"
+    else:
+        return "Note: '" + description.replace("'","") + "'"
 
 def createTable(dbml_path, model, schema, docs_path):
     """Create a table in the dbml file. 
 
     Args:
         dbml_path (dbml file): The file where to store the table
-        model (dbt model): The dbt model to extract the table and columns from
+        model: JSON object from catalog representing the dbt model
+        schema: The dbt YAML file from which we extract descriptions and tests
+        docs_path: Path to docs folder containing docs.md files
     """    
     name = model["metadata"]["name"]
     columns = list(model["columns"].keys())
     start = "{"
     end = "}"
 
-    # Create a dictionary from the docs.md file
-    docs_dict = {}
-
-    if os.path.exists(docs_path):
-        # Loop through all files in the docs folder
-        for filename in os.listdir(docs_path):
-            # Check if the file is a markdown file
-            if filename.endswith(".md"):
-                # Load the content of the markdown file
-                with open(os.path.join(docs_path, filename), "r") as docs_file:
-                    docs_content = docs_file.read()
-
-                docs_pattern = re.compile(r"{% docs (.*?) %}(.*?){% enddocs %}", re.DOTALL)
-
-                for match in docs_pattern.finditer(docs_content):
-                    key = match.group(1).strip()
-                    value = match.group(2).strip()
-                    docs_dict[key] = value.replace("'", "")
-
-    # Replace jinja variables in .yml with values in the docs.md files
-    def replace_jinja_variables(text, docs_dict):
-        jinja_variable_pattern = re.compile(r'\'?{{\s*doc\(\s*\"(\w+)\"\s*\)\s*}}\'?\n?')
-
-
-        def replace_variable(match):
-            variable_name = match.group(1)
-            return docs_dict.get(variable_name, match.group(0))
-
-        return jinja_variable_pattern.sub(replace_variable, text)
+    docs_dict = parse_docs_markdown_files(docs_path)
 
     # Find the model in the schema YAML file
     schema_model = None
@@ -72,12 +104,7 @@ def createTable(dbml_path, model, schema, docs_path):
             schema_model = m
             break
     
-    model_description = ""
-    if "description" in schema_model:
-        if "{{" in schema_model["description"]:
-            model_description = "Note: '" + replace_jinja_variables(schema_model["description"], docs_dict) + "'"
-        else:
-            model_description = "Note: '" + schema_model["description"].replace("'","") + "'"
+    model_description = parse_description(schema_model, docs_dict)
 
     dbml_path.write(f"Table {name} {start} \n")
 
@@ -106,11 +133,9 @@ def createTable(dbml_path, model, schema, docs_path):
                     elif t == "unique":
                         column_docs_list.append("unique, pk")
 
-            if "description" in schema_column:
-                if "{{" in schema_column["description"]:
-                    column_docs_list.append("note: '" + replace_jinja_variables(schema_column["description"], docs_dict) + "'")
-                else:
-                    column_docs_list.append("note: '" + schema_column["description"].replace("'","") + "'")
+            column_description = parse_description(schema_column, docs_dict)
+            if column_description:
+                column_docs_list.append(column_description)
 
             if column_docs_list:
                 column_tests_and_description = '[' + ', '.join(column_docs_list) + ']'
