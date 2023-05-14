@@ -41,19 +41,7 @@ def replace_jinja_variables(text, docs_dict):
 
     return jinja_variable_pattern.sub(replace_variable, text)
 
-def createTable(dbml_path, model, schema, docs_path):
-    """Create a table in the dbml file. 
-
-    Args:
-        dbml_path (dbml file): The file where to store the table
-        model: JSON object from catalog representing the dbt model
-        schema: The dbt YAML file from which we extract descriptions and tests
-        docs_path: Path to docs folder containing docs.md files
-    """    
-    name = model["metadata"]["name"]
-    columns = list(model["columns"].keys())
-    start = "{"
-    end = "}"
+def parse_docs_markdown_files(docs_path):
 
     # Create a dictionary from the docs.md file
     docs_dict = {}
@@ -78,6 +66,36 @@ def createTable(dbml_path, model, schema, docs_path):
                         docs_dict[key] = value.replace("'", "")
                 except IOError as e:
                     print(f"Error reading file {filename}: {e}")
+                except UnicodeDecodeError as e:
+                    print(f"Error decoding file {filename}: {e}")
+
+    return docs_dict
+
+def parse_description(entity, docs_dict):
+    if "description" not in entity:
+        return ""
+        
+    description = entity["description"]
+    if "{{" in description:
+        return "Note: '" + replace_jinja_variables(description, docs_dict) + "'"
+    else:
+        return "Note: '" + description.replace("'","") + "'"
+
+def createTable(dbml_path, model, schema, docs_path):
+    """Create a table in the dbml file. 
+
+    Args:
+        dbml_path (dbml file): The file where to store the table
+        model: JSON object from catalog representing the dbt model
+        schema: The dbt YAML file from which we extract descriptions and tests
+        docs_path: Path to docs folder containing docs.md files
+    """    
+    name = model["metadata"]["name"]
+    columns = list(model["columns"].keys())
+    start = "{"
+    end = "}"
+
+    docs_dict = parse_docs_markdown_files(docs_path)
 
     # Find the model in the schema YAML file
     schema_model = None
@@ -86,12 +104,7 @@ def createTable(dbml_path, model, schema, docs_path):
             schema_model = m
             break
     
-    model_description = ""
-    if "description" in schema_model:
-        if "{{" in schema_model["description"]:
-            model_description = "Note: '" + replace_jinja_variables(schema_model["description"], docs_dict) + "'"
-        else:
-            model_description = "Note: '" + schema_model["description"].replace("'","") + "'"
+    model_description = parse_description(schema_model, docs_dict)
 
     dbml_path.write(f"Table {name} {start} \n")
 
@@ -120,11 +133,9 @@ def createTable(dbml_path, model, schema, docs_path):
                     elif t == "unique":
                         column_docs_list.append("unique, pk")
 
-            if "description" in schema_column:
-                if "{{" in schema_column["description"]:
-                    column_docs_list.append("note: '" + replace_jinja_variables(schema_column["description"], docs_dict) + "'")
-                else:
-                    column_docs_list.append("note: '" + schema_column["description"].replace("'","") + "'")
+            column_description = parse_description(schema_column, docs_dict)
+            if column_description:
+                column_docs_list.append(column_description)
 
             if column_docs_list:
                 column_tests_and_description = '[' + ', '.join(column_docs_list) + ']'
