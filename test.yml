@@ -1,0 +1,577 @@
+version: 2
+
+models:   
+  - name: dim_tenant
+    description: Contains all Karbon customers (tenants)
+    columns: 
+      - name: tenant_perma_key
+        description: '{{ doc("tenant_perma_key") }}'
+        tests:
+          - not_null
+          - unique
+
+      - name: tenant_name
+        description: Name of tenant
+        tests:
+          - not_null
+
+      - name: industry_id
+        description: Private identifier for the tenant's industry
+        tests:
+          - not_null
+
+      - name: industry_name
+        description: ""
+        tests:
+          - not_null
+
+      - name: created_at
+        description: ""
+        tests:
+          - not_null
+
+      - name: tenant_status_id
+        description: Private identifier for the tenant's status
+        tests:
+          - not_null
+
+      - name: tenant_status_name
+        description: ""
+        tests:
+          - not_null
+
+  - name: dim_user_profile
+    description: > 
+      Contains personal information for the user.
+      This includes user profile settings such as expected billable minutes per week and fully loaded cost per hour. 
+    columns: 
+      - name: user_profile_perma_key
+        description: '{{ doc("user_profile_perma_key") }}'
+        tests:
+          - not_null
+          - unique
+
+      - name: tenant_perma_key
+        description: '{{ doc("tenant_perma_key") }}'
+        tests:
+          - not_null
+
+      - name: display_name
+        description: '{{ doc("tenant_perma_key") }}'
+        tests:
+          - not_null
+
+  - name: dim_work_item
+    description: Contains work items and related details.
+    columns: 
+      - name: work_item_perma_key
+        description: '{{ doc("work_item_perma_key") }}'
+        tests:
+          - not_null
+          - unique
+
+      - name: tenant_perma_key
+        description: '{{ doc("tenant_perma_key") }}'
+        tests:
+          - not_null
+
+      - name: client_id
+        description: '{{ doc("client_id") }}'
+        tests:
+          - not_null:
+              where: "internal_user_client_id is null"
+
+      - name: internal_user_client_id
+        description: '{{ doc("internal_user_client_id") }}'
+        tests:
+          - not_null:
+              where: "client_id is null"
+
+      - name: is_internal_user_client
+        description: '{{ doc("is_internal_user_client") }}'
+        tests:
+          - not_null
+
+      - name: current_assignee_user_profile_perma_key
+        description: The private identifier of the user who is currently assigned to the work item
+        tests:
+          - not_null
+
+      - name: completed_by_user_profile_perma_key
+        description: The private identifier of the user who completed the work item
+
+      - name: created_by_user_profile_perma_key
+        description: The private identifier of the user who created the work item
+  
+      - name: primary_status_id
+        description: Private identifier for the work item primary status
+        tests:
+          - not_null
+
+      - name: secondary_status_perma_key
+        description: Public identifier for the optional work item secondary status
+
+      - name: business_date
+        description: '{{ doc("business_date") }}'
+        tests:
+          - not_null
+
+      - name: secondary_status_order
+        description: '{{ doc("secondary_status_order") }}'
+
+      - name: primary_and_secondary_order_combined
+        description: '{{ doc("primary_and_secondary_order_combined") }}'
+        tests:
+          - not_null
+
+      - name: repeat_schedule
+        description: '{{ doc("repeat_schedule") }}'
+
+      - name: current_status_entry_date
+        description: >
+          Date the current status was entered.
+          This value will be null if the current status was entered prior to December 31, 2021
+
+      - name: work_template_perma_key
+        description: '{{ doc("work_template_perma_key") }}' 
+
+      - name: work_template_title
+        description: '{{ doc("work_template_title") }}' 
+
+
+  - name: fact_client_email_interaction_daily
+    description: >
+      This model is from a tenant perspective, meaning the tenant is sending and receiving emails to a client.
+      This model calculates of the number of emails sent to a client at a daily USER grain (where interaction direction = sent).
+      It also calculates the number of emails received from a client at a daily TENANT (where interaction = received).
+      This model only displays emails sent and received from contacts and organizations
+      Emails received are not at a user grain because the client can send the same email message id to multiple user profiles (recipients).
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "total_email_interaction_count >= 0"
+
+    columns:
+      - name: id
+        description: PK. Surrogate key combining date, user, client_id and email interaction direction.
+        tests:
+          - not_null
+          - unique
+
+      - name: email_interaction_direction_name
+        description: '{{ doc("email_interaction_direction_name") }}'
+        tests:
+          - not_null 
+
+      - name: interaction_date
+        description: '{{ doc("interaction_date") }}'
+        tests:
+          - not_null 
+
+      - name: client_id
+        description: '{{ doc("client_id") }}'
+        tests:
+          - not_null
+
+      - name: client_perma_key
+        description: '{{ doc("client_perma_key") }}'
+        tests:
+          - not_null
+
+      - name: client_type_name
+        description: |
+          Field to distiguish client type.
+          This model only displays emails sent and received from contacts and organizations
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Contact', 'Organization', 'contact']
+
+      - name: tenant_perma_key
+        description: '{{ doc("tenant_perma_key") }}'
+        tests:
+          - not_null
+
+      - name: email_sender_user_profile_perma_key
+        description: '{{ doc("email_sender_user_profile_perma_key") }}'
+        tests:
+          - not_null:
+              where: "email_interaction_direction_name = 'Sent'"
+
+  - name: fact_email
+    description: >
+      This model is from a tenant perspective, meaning the tenant is sending and receiving emails to a client or internal user.
+      This model calculates the time to response for any email message ID that has been replied to, and is null if the email has not been replied to.
+      If the email_response_direction_name = 'Sent', this record calculates the time it took for a tenant to respond to a client or internal user email.
+      If the email_response_direction_name = 'Received', this record calculates the time it took for a client or internal user to respond to a tenant email.
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "response_time_hours >= 0"
+
+      - dbt_utils.expression_is_true:
+          expression: "response_time_minutes >= 0"
+
+    columns:
+      - name: id
+        description: PK. Surrogate key combining email response direction, time, and email_message, sender and client id
+        tests:
+          - not_null
+          - unique
+
+      - name: email_message_id
+        description: '{{ doc("email_message_id") }}'
+        tests:
+          - not_null 
+
+      - name: email_response_direction_name
+        description: Similar to the email_interaction_direction_name but indicates whether a response was received or sent to a client 
+
+      - name: email_response_at
+        description: Time of the response to the email
+          
+      - name: email_received_at
+        description: Time the email was received
+
+      - name: email_conversation_perma_key
+        description: '{{ doc("email_conversation_perma_key") }}'
+
+      - name: client_id
+        description: '{{ doc("client_id") }}'
+
+      - name: client_perma_key
+        description: '{{ doc("client_id") }}'
+
+      - name: client_type_name
+        description: |
+          Field to distiguish client type.
+
+      - name: tenant_perma_key
+        description: '{{ doc("tenant_perma_key") }}'
+        tests:
+          - not_null 
+
+      - name: email_sender_user_profile_perma_key
+        description: '{{ doc("email_sender_user_profile_perma_key") }}'
+        tests:
+          - not_null:
+              where: "email_response_direction_name = 'Sent'"
+
+      - name: response_time_hours
+        description: |
+          Number of hours between the time the email was received by the client, and a response was sent.
+          If this value is null, there has been no response to the client email.
+
+      - name: response_time_minutes
+        description: |
+          Number of minutes between the time the email was received by the client, and a response was sent 
+          If this value is null, there has been no response to the client email.
+
+      - name: subject_text
+        description: Email subject text
+
+  - name: fact_user_profile_time_entry
+    description: Time entries aggregated for at a user, actor, task type, client and work item grain
+    columns: 
+      - name: time_entry_perma_key
+        description: PK public unique identifier for each event
+        tests:
+          - not_null
+          - unique
+
+      - name: time_entry_id
+        description: PK; private unique identifier for each event
+        tests:
+            - unique
+            - not_null
+
+      - name: time_entry_submitted_by_user_profile_perma_key
+        description: Private identifier for the user who submitted the time entry
+        tests:
+          - not_null
+
+      - name: tenant_perma_key
+        description: '{{ doc("tenant_perma_key") }}'
+        tests:
+          - not_null
+
+      - name: client_id
+        description: '{{ doc("client_id") }}'
+        tests:
+          - not_null:
+              where: "internal_user_client_id is null"
+
+      - name: client_perma_key
+        description: '{{ doc("client_perma_key") }}'
+        tests:
+          - not_null:
+              where: "internal_user_client_id is null"
+
+
+      - name: internal_user_client_id
+        description: '{{ doc("internal_user_client_id") }}'
+        tests:
+          - not_null:
+              where: "client_id is null"
+
+      - name: work_item_perma_key
+        description: '{{ doc("work_item_perma_key") }}'
+
+      - name: description
+        description: Description of the time entry
+
+      - name: minutes
+        description: Minutes of time entered for the user, actor, task type, client and work item
+        tests:
+          - not_null
+
+      - name: total_cost
+        description: Total cost based on time entries submitted for the user, actor, task type, client and work item
+        tests:
+          - not_null
+
+  - name: fact_work_item_status_change_detail
+    description: >
+      A record of primary and secondary status changes for a work item at a combined primary and secondary level (including the original status)
+      Note that this model is inner-joined to work items to remove status changes for work items that have been deleted.
+
+    columns: 
+      - name: id
+        description: PK
+        tests:
+          - not_null
+          - unique
+
+      - name: work_item_perma_key
+        description: '{{ doc("work_item_perma_key") }}'
+        tests:
+          - not_null
+          - unique:
+              where: "is_original_status_creation"
+
+      - name: tenant_perma_key
+        description: '{{ doc("tenant_perma_key") }}'
+        tests:
+          - not_null
+
+      - name: status_changed_at
+        description: The timestamp of the status change (start time for the 'to' fields and end time for the 'from' fields)
+        tests:
+          - not_null
+
+      - name: status_change_date
+        description: The timestamp of the status change truncated to a date.
+        tests:
+          - not_null
+
+      - name: modified_by_user_profile_perma_key
+        description: Private identifier of the user making the change
+
+      - name: assignee_user_profile_perma_key
+        description: Private identifier of the user assigned to the work item undergoing a change
+
+      - name: to_primary_status_id
+        description: The identifier of the new primary status of the work item
+        tests:
+          - not_null
+
+      - name: from_primary_status_id
+        description: The identifier of the existing primary status of the work item 
+
+      - name: to_secondary_status_perma_key
+        description: The new public identifier of the secondary status of the work item 
+
+      - name: from_secondary_status_perma_key
+        description: The existing public identifier of the secondary status of the work item
+
+      - name: to_secondary_status_order
+        description: >
+            Referring to new secondary status.
+            '{{ doc("secondary_status_order") }}' 
+
+      - name: from_secondary_status_order
+        description: >
+            Referring to new existing secondary status.
+            '{{ doc("secondary_status_order") }}' 
+
+      - name: is_automater_change
+        description: A boolean field that flags whether the changes was automated (as opposed to enacted by a user)
+        tests:
+          - not_null
+
+      - name: is_original_status_creation
+        description: Flags whether the change is the original status being set for the work item.
+        tests:
+          - not_null
+
+      - name: from_primary_and_secondary_order_combined
+        description: >
+            Referring to previous secondary status         
+            '{{ doc("primary_and_secondary_order_combined") }}'
+        tests:
+          - not_null
+
+      - name: to_primary_and_secondary_order_combined
+        description: >
+            Referring to new secondary status 
+            '{{ doc("primary_and_secondary_order_combined") }}'
+        tests:
+          - not_null
+
+  - name: fact_work_item_due_date_detail
+    description: These columns in this table are required for the Due Date Power BI report. They are added to work_item_detail model downstream in the DAG.
+    columns:
+      - name: work_item_perma_key
+        description: >
+          Primary key
+          '{{ doc("work_item_perma_key") }}' 
+        tests:
+            - unique
+            - not_null
+
+      - name: budget_remaining_hours
+        description: >
+          Subtracts the time entry hours from the budget hours for a work item.
+          If the work item has no time entries or estimates, this column is null.
+
+      - name: internal_tasks_completed_count
+        description: '{{ doc("internal_tasks_completed_count") }}'
+        tests:
+            - not_null
+            - dbt_utils.expression_is_true:
+                expression: ">= 0"
+
+      - name: internal_tasks_pending_count
+        description: Subtracts the number of completed tasks from the total number of tasks to get the number of pending tasks for a work item.
+        tests:
+            - not_null
+            - dbt_utils.expression_is_true:
+                expression: ">= 0"
+
+      - name: is_work_item_overdue
+        description: True if a work item was completed past its due date or if an in-progress work item is incomplete after its due date.
+        tests:
+            - not_null
+            - accepted_values:
+                values: [true, false]
+
+      - name: tenant_perma_key
+        description: '{{ doc("tenant_perma_key") }}' 
+        tests:
+            - not_null
+            - relationships:
+                to: ref('dim_tenant')
+                field: tenant_perma_key
+
+  
+  - name: fact_work_item_estimate
+    description: Budget estimates aggregated at a user, actor, task type, client and work item grain
+    columns: 
+      - name: work_item_estimate_unique_id
+        description: PK. Surrogate key created based on the grain of the model.
+        tests:
+          - not_null
+          - unique
+
+      - name: work_item_perma_key
+        description: '{{ doc("work_item_perma_key") }}'
+        tests:
+          - not_null
+
+      - name: tenant_perma_key
+        description: '{{ doc("tenant_perma_key") }}'
+        tests:
+          - not_null
+
+      - name: actor_perma_key
+        description: '{{ doc("actor_perma_key") }}'
+
+      - name: task_type_perma_key
+
+      - name: user_profile_perma_key
+        description: '{{ doc("user_profile_perma_key") }}'
+
+      - name: estimate_minutes
+        description: Total minutes of estimates for the grain of the model
+        tests:
+          - not_null
+
+      - name: total_estimate_amount
+        description: Total dollar amount of estimates for the grain of the model
+        tests:
+          - not_null
+
+      - name: work_item_estimate_count
+        description: Number of estimates for the grain of the model
+        tests:
+          - not_null
+
+  - name: fact_work_item_internal_task_detail
+    description: '{{ doc("internal_task_table_description") }}'
+    columns:
+      - name: internal_task_id
+        description: >
+          '{{ doc("internal_task_id") }}'
+        tests:
+            - not_null
+            - unique
+
+      - name: internal_task_actor_perma_key
+        description: '{{ doc("actor_perma_key") }}' 
+
+      - name: internal_task_current_assignee_user_profile_perma_key
+        description: '{{ doc("internal_task_current_assignee_user_profile_perma_key") }}' 
+
+      - name: internal_task_created_at
+        description: Date and time at which task was created. Immutable. Generated by Karbon application.
+        tests:
+            - not_null
+            - assert_timestamp_after_2015
+            - assert_timestamp_not_in_future
+      
+      - name: internal_task_due_at
+        description: The due date of a task set by Karbon users.
+
+      - name: internal_task_completed_at
+        description: >
+          '{{ doc("completed_at") }}'
+          When internal_task_primary_status_id = 4, the task has status "Complete", so it should always have a completed date.
+        tests:
+            - assert_timestamp_after_2015
+
+      - name: internal_task_primary_status_id
+        description: >
+          '{{ doc("primary_status_id") }}'
+          When there is a timestamp in internal_task_completed_at, then the status must be "Complete" which is primary_status_id = 4.
+        tests:
+            - not_null
+            - accepted_values:
+                values: [4]
+                where: "internal_task_completed_at is not null"
+                config:
+                  error_if: ">10"
+                  warn_if: ">10"
+                  #there are some known data quality issues. Raising the error limit from 0 to 10 to only fail this test if the problem worstens.
+
+      - name: internal_task_secondary_status_perma_key
+        description: '{{ doc("secondary_status_perma_key") }}' 
+
+      - name: section_name
+
+      - name: task_type_perma_key
+        description: '{{ doc("task_type_perma_key") }}' 
+
+      - name: internal_task_title
+
+      - name: work_item_perma_key
+        description: '{{ doc("work_item_perma_key") }}' 
+        tests:
+            - not_null
+
+      - name: tenant_perma_key
+        description: '{{ doc("tenant_perma_key") }}' 
+        tests:
+            - not_null
+            - relationships:
+                to: ref('dim_tenant')
+                field: tenant_perma_key
+            
+  
