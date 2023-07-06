@@ -7,22 +7,24 @@ There are some great ways to auto generate ERD diagrams. Thus, we just want to b
 
 # Installation
 
-1. Clone this repository to a folder and run:
-
+1. Install directly from git:
+```
+pip install -U git+https://github.com/cecil185/dbt-docs-to-dbml#subdirectory=src
+```
+or clone this repository to a folder, cd into the folder /dbt-docs-to-dbml and run:
 ```
 pip install src/
 ```
 
-or direct from git
-
+2. Install at Node.js from https://nodejs.org/en/download
+3. Install NPM using
 ```
-pip install -U git+https://github.com/cecil185/dbt-docs-to-dbml#subdirectory=src
+sudo npm install npm --global
 ```
-
-2. Setup dbdocs cli for diagram creations. [Instructions here](https://dbdocs.io/docs)
-3. Test dbterd with the following command:
+4. (Optional) Setup dbdocs cli for diagram creations. [Instructions here](https://dbdocs.io/docs)
+5. Test dbterd with the following command:
 ```
-dbterd tests/schema.yml tests/catalog.json test.dbml test True
+dbterd models/marts/core/core.yml target/catalog.json test.dbml docs test False
 ```
 # Usage
 To use this packages on your own project run *dbterd* with the following parameters in order: 
@@ -30,12 +32,7 @@ To use this packages on your own project run *dbterd* with the following paramet
 1. Path to the dbt schema 
 2. Path to the dbt catalog 
 3. Path to store the dbml file
-4. Name of the project on dbdocs.io
-5. True or False if you want to vizualise the dbml file on dbdocs.io
+4. Path to the docs folder containing .md files with doc blocks
+5. Name of the project on dbdocs.io
+6. To create ERD in dbdocs.io, set value to ```launch-dbdocs```. Any other values will use Node.js to create an ERD saved as ```ERD.svg```.
 
-# Tests
-
-
-# To-Do
-* Code cleanup 
-* 
