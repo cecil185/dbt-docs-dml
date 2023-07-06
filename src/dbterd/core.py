@@ -135,7 +135,7 @@ class DbmlDocs:
         
         model_description = self.ParseDescription(schema_model)
 
-        dbml_file.write(f"Table {name} {start} \n")
+        dbml_file.write(f"Table {name} {start}\n")
 
         for column_name in columns:
             column = model["columns"][column_name] 
@@ -169,8 +169,8 @@ class DbmlDocs:
                 if column_docs_list:
                     column_tests_and_description = '[' + ', '.join(column_docs_list) + ']'
                 
-            dbml_file.write(f"{name} {dtype} {column_tests_and_description} \n")
-        dbml_file.write(f"{model_description} \n{end} \n")
+            dbml_file.write(f"{name} {dtype} {column_tests_and_description}\n")
+        dbml_file.write(f"{model_description}\n{end}\n")
         
 
     def WriteRelationship(self, dbml_file):
@@ -191,7 +191,7 @@ class DbmlDocs:
                                 
                                 r2 = model["name"].upper()
                                 r2_field = column["name"].upper()
-                                dbml_file.write(f"Ref: {r1}.{r1_field} > {r2}.{r2_field} \n")
+                                dbml_file.write(f"Ref: {r1}.{r1_field} > {r2}.{r2_field}\n")
                                 
 
     def GenerateDbml(self):
