@@ -21,8 +21,12 @@ pip install src/
 ```
 sudo npm install npm --global
 ```
-4. (Optional) Setup dbdocs cli for diagram creations. [Instructions here](https://dbdocs.io/docs)
-5. Test dbterd with the following command:
+4. Install ERD renderer
+```
+sudo npm install -g @softwaretechnik/dbml-renderer
+```
+5. (Optional) Setup dbdocs cli for diagram creations. [Instructions here](https://dbdocs.io/docs)
+6. Test dbterd with the following command:
 ```
 dbterd models/marts/core/core.yml target/catalog.json test.dbml docs test False
 ```
